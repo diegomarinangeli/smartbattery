@@ -25,6 +25,16 @@ Verificato end-to-end (non solo scrittura/lettura del registro, ma carica reale)
 
 Per questo il parametro `-Offset` esiste solo come scappatoia manuale (default `0`, nessuna compensazione applicata automaticamente): se osservi *tu stesso*, in modo ripetibile, un gap tra `-Percent` e dove la carica si ferma davvero sul tuo laptop, puoi correggerlo con `-Offset`. Non impostarlo "a intuito": una soglia troppo alta fa caricare la batteria oltre il limite voluto, il che è peggio (per la durata della batteria) di un occasionale, non confermato, arresto leggermente sotto.
 
+## La carica non riparte finché la batteria non scende parecchio sotto la soglia (comportamento voluto, non un bug)
+
+Con la soglia impostata a 80%, se scolleghi e ricolleghi l'alimentatore (o se il laptop consuma più di quanto l'AC fornisce) mentre la batteria è, ad esempio, al 75%, la carica **non riparte subito**. Questo è normale: senza un'isteresi, il laptop farebbe continui micro-cicli di carica/scarica appena sotto l'80%, il che usura la batteria più di un limite netto. L'EC ha quindi una soglia di ripresa più bassa di quella di stop (nell'implementazione standard MSI, circa 10 punti sotto — quindi la carica riparte solo sotto ~70% con soglia 80%). Tra le due soglie il sistema resta semplicemente alimentato via AC senza toccare la batteria: non è "bloccato", sta facendo esattamente il suo lavoro.
+
+Per verificare lo stato reale (invece di fidarti solo della percentuale mostrata) usa:
+```powershell
+Get-CimInstance -Namespace root\wmi -ClassName BatteryStatus | Select-Object Charging, Discharging, PowerOnline
+```
+`PowerOnline: True` + `Charging: False` + `Discharging: False` = alimentato da AC, batteria in pausa dentro la finestra di isteresi. È lo stato atteso, non un errore.
+
 ## Requisiti
 
 - Windows 10/11
