@@ -14,22 +14,21 @@ Verified by round-trip test on an MSI Cyborg 15 A12VE (2026-08-18): write 80
 enable/disable flag -- writing 100 removes the practical limit (charges
 normally to full).
 
-KNOWN QUIRK -- displayed charge undershoots the EC threshold: the EC's own
-fuel-gauge reading (what it compares against the threshold to decide when
-to stop) is not the same counter as the percentage Windows displays (derived
-from ACPI capacity values on its own refresh cadence). In practice the EC
-can reach its threshold and cut charging before Windows' displayed number
-catches up, so asking for 80 can visibly stop at ~78. This is a mismatch
-between two independent counters, not a bug in the write/readback above --
-readback always reflects exactly what was written to the register.
-Confirmed on the Cyborg 15 A12VE: requesting 80 visibly stopped at 78.
+Also verified end-to-end against real charge behavior, not just register
+readback, on the Cyborg 15 A12VE (2026-08-20): wrote 82 to the EC, let it
+charge to a stop, Windows showed 82% -- i.e. the EC threshold and the
+percentage Windows displays at cutoff track 1:1. (An earlier report of
+"set 80, stopped at 78" was NOT reproduced by this test and is not a stable
+offset -- it may have been read at a different moment relative to post-charge
+voltage relaxation, or from a different charge-limit mechanism entirely.
+Don't pre-apply an unverified correction: overshooting the requested limit
+defeats the point of capping charge for battery longevity, which is worse
+than a rare, unconfirmed undershoot.)
 
-Fix: -Offset adds a few extra points to the EC threshold so the *displayed*
-stop point lands on -Percent. Default is 2 (the observed gap on this
-machine). If your displayed stop point still doesn't match -Percent,
-recalibrate: let it charge to a stop, note the gap, adjust -Offset by that
-amount next time. Battery wear can drift full-charge-capacity over time, so
-re-check the calibration occasionally.
+-Offset exists purely as a manual escape hatch: if you personally observe a
+consistent, repeatable gap between -Percent and where charging actually
+stops on your machine, set -Offset to correct for it. Default is 0 --
+don't guess a value without having actually observed the gap yourself.
 
 Requires administrator privileges (WMI method calls to this class need an
 elevated token). Self-elevates if not already running as admin.
@@ -40,7 +39,7 @@ param(
     [int]$Percent = 80,
 
     [ValidateRange(-20, 20)]
-    [int]$Offset = 2,
+    [int]$Offset = 0,
 
     [switch]$Get
 )

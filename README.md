@@ -19,11 +19,11 @@ Un byte letto come `0x80` (percentuale 0 con bit 7 settato) indica "nessun limit
 
 Questo meccanismo è stato identificato incrociando: (1) una patch del kernel Linux per il driver `msi-wmi-platform` (`platform/x86: msi-wmi-platform: Add charge_threshold support`, non ancora mergiata al momento della scrittura) che descrive indirizzo e formato, e (2) verifica empirica diretta sull'hardware reale tramite chiamate WMI in PowerShell.
 
-## Perché la carica si ferma sotto la soglia impostata (es. 78% invece di 80%)
+## Se la carica sembra fermarsi sotto la soglia impostata
 
-L'EC decide quando fermare la carica confrontando la soglia con il **proprio** contatore interno di carica (fuel gauge), che è un valore diverso dalla percentuale che Windows mostra in tray (calcolata da Windows a partire dai valori ACPI di capacità, con un refresh proprio e non sincronizzato con quello dell'EC). In pratica l'EC può raggiungere la soglia e fermare la carica prima che il numero mostrato da Windows si aggiorni di conseguenza — quindi impostando 80 si può vedere la carica fermarsi visibilmente all'78% circa. Non è un bug nella scrittura/lettura del registro (il round-trip scrittura→lettura è sempre fedele a quanto scritto): sono due contatori indipendenti che divergono leggermente.
+Verificato end-to-end (non solo scrittura/lettura del registro, ma carica reale) sul Cyborg 15 A12VE il 2026-08-20: scritto 82 nell'EC, lasciato caricare fino allo stop, Windows ha mostrato 82%. Cioè il valore scritto nel registro EC e la percentuale che Windows mostra al momento dello stop **coincidono 1:1** — non c'è un offset fisso da compensare. Un precedente episodio ("impostato 80, fermato a 78") non si è ripetuto in questo test: potrebbe essere stato letto in un momento diverso rispetto al rilassamento della tensione post-carica, o provenire da un meccanismo diverso (es. MSI Center invece di questo script).
 
-Lo script compensa questo con il parametro `-Offset` (default `2`, tarato sul gap osservato su questa macchina: richiesti 80, fermata visibile a 78): scrive nell'EC `Percent + Offset`, in modo che il punto di stop *visibile in Windows* combaci con `-Percent`. Se sul tuo laptop il gap è diverso, ricalibra: imposta un limite, lascia caricare fino allo stop, guarda a che percentuale si è davvero fermato in Windows, e regola `-Offset` di conseguenza al prossimo utilizzo. Il gap può anche spostarsi leggermente nel tempo con l'usura della batteria (degrado della full-charge-capacity), quindi vale la pena ricontrollarlo ogni tanto.
+Per questo il parametro `-Offset` esiste solo come scappatoia manuale (default `0`, nessuna compensazione applicata automaticamente): se osservi *tu stesso*, in modo ripetibile, un gap tra `-Percent` e dove la carica si ferma davvero sul tuo laptop, puoi correggerlo con `-Offset`. Non impostarlo "a intuito": una soglia troppo alta fa caricare la batteria oltre il limite voluto, il che è peggio (per la durata della batteria) di un occasionale, non confermato, arresto leggermente sotto.
 
 ## Requisiti
 
@@ -43,7 +43,7 @@ Imposta una percentuale diversa:
 .\Set-BatteryLimit.ps1 -Percent 60
 ```
 
-Ricalibra l'offset di compensazione (vedi sezione sopra) se sul tuo laptop il gap osservato è diverso da 2 punti:
+Correggi manualmente se osservi tu stesso un gap ripetibile tra `-Percent` e dove la carica si ferma davvero (vedi sezione sopra):
 ```powershell
 .\Set-BatteryLimit.ps1 -Percent 80 -Offset 3
 ```
